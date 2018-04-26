@@ -5,9 +5,9 @@ var mime = require('mime-types');
 var azure = require('azure-storage');
 var uuid = require('uuid/v1');
 
-var devCreds = azure.generateDevelopmentStorageCredentials();
-var tableService = azure.createTableService(devCreds);
-
+//var devCreds = azure.generateDevelopmentStorageCredentials();
+//var tableService = azure.createTableService(devCreds);
+var tableService = azure.createTableService("DefaultEndpointsProtocol=https;AccountName=csdraftdb;AccountKey=mXn9BNopoOYN/aavwG5dmH5Qh4pSyJZEIyFwQzLSUkyhdfXdzmIV2pa7M4I6ky7joFp7OggVj7iYvvlfzvmN+g==;EndpointSuffix=core.windows.net");
 
 var port = process.env.PORT || 1337;
 
@@ -69,14 +69,14 @@ function processPost(req, res) {
     req.on('end', function () {
         var postData = JSON.parse(body);
 
-        switch (req.url) {
-            case '/api/user':
-                createNewUser(postData, res);
-                break;
-            default:
+        if (req.url === '/api/user') {
+            createNewUser(postData, res);
+        } else if (req.url.indexOf('/api/rating/') === 0) {
+            var parts = req.url.split('/');
+            saveRating(parts[3], parts[4], postData.rating, res);
+        } else {
                 res.writeHead(400, { 'Content-Type': 'text/plain' });
-                res.end('Bad Request');
-                break;
+                res.end('Bad Request');             
         }
     });
 }
@@ -87,8 +87,14 @@ function processApiGet(req, res) {
     } else if (req.url.indexOf('/api/importPlayers') === 0) {
         importPlayers(res);
     } else if (req.url.indexOf('/api/players') === 0) {
-            showAllPlayers(res);
-    } else {
+            getPlayers(res);
+    } else if (req.url.indexOf('/api/rating/') === 0) {
+        var parts = req.url.split('/');
+        getRating(parts[3], parts[4], res);
+    } else if (req.url.indexOf('/api/rated/') === 0) {
+        var parts = req.url.split('/');
+        getRated(parts[3], res);
+    }else {
         res.writeHead(400, { 'Content-Type': 'text/plain' });
         res.end('Bad Request');
     }
@@ -111,12 +117,13 @@ function createNewUser(data, res) {
             //complexDateValue: entGen.DateTime(new Date(Date.UTC(2013, 02, 16, 01, 46, 20)))
         };
         tableService.insertEntity(tableName, entity, function (error, result, response) {
-            if (!error) {
-                // result contains the ETag for the new entity
-                entity['ETag'] = result;
+            if (!error) {            
                 res.writeHead(200, { 'Content-Type': mime.contentType('json') });
                 res.end(JSON.stringify({ userId: userId }));
-            }
+            } else {
+                res.writeHead(response.statusCode);
+                res.end();
+            }     
         });
     });
 }
@@ -129,6 +136,14 @@ function ensureUserTable(callback) {
     });
 }
 
+function ensureRatingTable(callback) {
+    tableService.createTableIfNotExists('ratings', function (error, result, response) {
+        if (!error) {
+            callback('ratings');
+        }
+    });
+}
+
 function getUser(userId, res) {
     ensureUserTable(tableName => {
         var query = new azure.TableQuery()
@@ -137,68 +152,85 @@ function getUser(userId, res) {
             .where('PartitionKey eq ?', userId);
         tableService.queryEntities(tableName, query, null, function (error, result, response) {
             if (!error) {
+                if (result.entries.length !== 1) {
+                    res.writeHead(404);
+                    res.end();
+                    return;
+                }
                 var entity = result.entries[0];
                 var data = {email: entity.RowKey._, name: entity.Name._, since: entity.UserSince._};
                 console.log('' + data);
                 res.writeHead(200, { 'Content-Type': mime.contentType('json') });
                 res.end(JSON.stringify(data));
-            }
+            } else {
+                res.writeHead(response.statusCode);
+                res.end();
+            }     
         });
     });
 }
 
 function importPlayers(res) {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    var contents = fs.readFileSync('playerData/RB 2018 List.csv', 'utf8');
-    var lines = contents.split(/[\n\r]+/);
-    var columns = lines[0].split(',');
-    var allDigits = /^\d+$/;
-    for (var i = 0; i < columns.length; i++) {
-        if (allDigits.test(columns[i])) {
-            columns[i] = '' + columns[i] + '-yard';
-        }
-    }
-    var data = [];
-    for (var i = 1; i < lines.length; i++) {
-        var ind = lines[i].split(',');
-        if (ind.length === columns.length) {
-            var player = {};
-            for (var j = 0; j < ind.length; j++) {
-                if (columns[j] === '#' || columns[j] === 'ID') {
-                    continue;
+    fs.readdir('playerData', function (err, items) {
+        var allDigits = /^\d+$/;
+        var data = [];
+        for (var k = 0; k < items.length; k++) {
+            var contents = fs.readFileSync(`playerData/${items[k]}`, 'utf8');
+            var lines = contents.split(/[\n\r]+/);
+            var columns = lines[0].split(',');            
+            for (var m = 0; m < columns.length; m++) {
+                if (allDigits.test(columns[m])) {
+                    columns[m] = '' + columns[m] + '-yard';
                 }
-                player[columns[j]] = ind[j];
-            }
-            data.push(player);
-        }
-    }
-
-    ensurePlayersTable(tableName => {
-        var pos = uniquePositions(data);
-        var batches = [];
-
-        for (var i = 0; i < pos.length; i++) {
-            var posData = data.filter(a => a['Pos.'] === pos[i]);
-            for (var j = 0; j < posData.length; j += 100) {
-                var entGen = azure.TableUtilities.entityGenerator;
-                var batch = new azure.TableBatch();
-                for (var i = j; i < Math.min(posData.length, j + 100); i++) {
-                    var player = posData[i];
-                    var entity = {
-                        PartitionKey: entGen.String(player['Pos.']),
-                        RowKey: entGen.String(uuid()),
-                        Name: entGen.String(player['Name']),
-                        School: entGen.String(player['School']),
-                        PlayerJSON: entGen.String(JSON.stringify(player))
-                    };
-                    batch.addOperation(azure.Constants.TableConstants.Operations.INSERT, entity);
+            }            
+            for (var i = 1; i < lines.length; i++) {
+                var ind = lines[i].split(',');
+                if (ind.length === columns.length) {
+                    var player = {};
+                    for (var j = 0; j < ind.length; j++) {
+                        if (columns[j] === '#' || columns[j] === 'ID') {
+                            continue;
+                        }
+                        player[columns[j]] = ind[j];
+                    }
+                    data.push(player);
                 }
-                batches.push(batch);
             }
         }
-         executeBatches(batches, tableName, 0);
-         res.end('' + data.length + ' players added');
-     });
+        addPlayersToDatabase(data, res);
+    });
+}
+
+function addPlayersToDatabase(data, res) {
+
+            ensurePlayersTable(tableName => {
+                var batches = [];
+                var entGen = azure.TableUtilities.entityGenerator;              
+                for (var j = 0; j < data.length; j += 100) {               
+                    var batch = new azure.TableBatch();
+                    for (var i = j; i < Math.min(data.length, j + 100); i++) {
+                        var player = data[i];
+                        var entity = {
+                            PartitionKey: entGen.String('player'),
+                            RowKey: entGen.String(uuid()),
+                            Name: entGen.String(player['Name']),
+                            School: entGen.String(player['School']),
+                            PlayerJSON: entGen.String(JSON.stringify(player))
+                        };
+                        batch.addOperation(azure.Constants.TableConstants.Operations.INSERT, entity);
+                    }
+                    batches.push(batch);
+                }           
+                executeBatches(batches, tableName, 0, function (e, r) {
+                    if (e) {
+                        res.writeHead(r.statusCode, 'Execute Batches Failed');
+                        res.end('Execute Batches Failed');
+                    } else {
+                        res.writeHead(200, { 'Content-Type': 'text/plain' });
+                        res.end('' + data.length + ' players added');
+                    }
+                });               
+            });
 
 }
 
@@ -210,30 +242,43 @@ function ensurePlayersTable(callback) {
     });
 }
 
-function executeBatches(batches, tableName, i) {
+function executeBatches(batches, tableName, i, callback) {
     tableService.executeBatch(tableName, batches[i], function (error, result, response) {
         if (!error) {
             if (i + 1 < batches.length) {
-                executeBatches(batches, tableName, i + 1);
+                executeBatches(batches, tableName, i + 1, callback);
+            } else {
+                callback(null, null);
             }
+        } else {
+            callback(error, response);
         }
     });
 }
 
-function showAllPlayers(res) {
+function getPlayers(res) {
     ensurePlayersTable(tableName => {
-
         var players = [];
         function callback(error, result, response) {
             if (!error) {
-                result.entries.forEach(function (x) { players.push(JSON.parse(x.PlayerJSON._)); });
+                result.entries.forEach(function (x) {
+                    var pd = {
+                        pkey: x.PartitionKey._,
+                        rkey: x.RowKey._,
+                        data: JSON.parse(x.PlayerJSON._)
+                    };
+                    players.push(pd);
+                });
                 if (result.continuationToken) {
                     tableService.queryEntities(tableName, null, result.continuationToken, callback);
                 } else {
                     res.writeHead(200, { 'Content-Type': mime.contentType('json') });
                     res.end(JSON.stringify(players));
                 }
-            }
+            } else {
+                res.writeHead(response.statusCode);
+                res.end();
+            }     
         }
         tableService.queryEntities(tableName, null, null, callback);
     });
@@ -254,3 +299,62 @@ function uniquePositions(arr) {
     return keys;
 }
 
+function saveRating(pkey, rkey, rating, res) {
+    ensureRatingTable(tableName => {
+        var entGen = azure.TableUtilities.entityGenerator;
+        var entity = {
+            PartitionKey: entGen.String(pkey),
+            RowKey: entGen.String(rkey),
+            Rating: entGen.Int32(rating),
+        };
+        tableService.insertOrReplaceEntity(tableName, entity, function (error, result, response) {
+            if (!error) {
+                res.writeHead(200, { 'Content-Type': mime.contentType('json') });
+                res.end(JSON.stringify({ status: "Ok" }));
+            } else {
+                res.writeHead(response.statusCode);
+                res.end();
+            }           
+        });
+    });
+}
+
+function getRating(pkey, rkey, res) {
+    ensureRatingTable(tableName => {
+        tableService.retrieveEntity(tableName, pkey, rkey, function (error, entity, response) {
+            if (!error) {
+                res.writeHead(200, { 'Content-Type': mime.contentType('json') });
+                res.end(JSON.stringify({ rating: entity.Rating._ }));
+            } else {
+                res.writeHead(response.statusCode);
+                res.end();
+            }     
+        });
+    });
+}
+
+function getRated(userId, res) {
+    ensureRatingTable(tableName => {
+        var query = new azure.TableQuery().where('PartitionKey eq ?', userId);
+        tableService.queryEntities(tableName, query, null, function (error, result, response) {
+            if (!error) {
+                if (result.entries.length === 0) {
+                    res.writeHead(404);
+                    res.end();
+                    return;
+                }
+                var ratedPlayers = [];
+                for (var i = 0; i < result.entries.length; i++) {
+                    var entity = result.entries[i];
+                    ratedPlayers.push({ id: entity.RowKey._, rating: entity.Rating._ })
+                }
+       
+                res.writeHead(200, { 'Content-Type': mime.contentType('json') });
+                res.end(JSON.stringify(ratedPlayers));
+            } else {
+                res.writeHead(response.statusCode);
+                res.end();
+            }
+        });
+    });
+}

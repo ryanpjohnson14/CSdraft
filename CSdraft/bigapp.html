@@ -16,8 +16,9 @@
             </ul>
         </header>
         <div id='content'>
-            <section id='home'>
+            <section id='home'  data-onShow="showingHome">
                 <h1>Home</h1>
+                <div id="ratedPlayers"></div>
             </section>
             <section id='players' data-onShow="showingPlayers">
                 <div>
@@ -28,7 +29,19 @@
                 <h1>Players</h1>
                 <style id="playersFilter"></style>
                 <div id='playersTable'></div>
-                <div id="playersDetail" hidden></div>
+                <div id="playersDetail" hidden>
+                    <div id="playersDetailData"></div>
+                    <div id="playerRating">
+                        <h2>Rating</h2>
+                        <form onsubmit="saveRating(); return false;">
+                            <input type="hidden" id="playerRkey">
+                            <input type="hidden" id="playerPkey">
+                            <input type="number" id="ratingRange" min="30" max="99" required>
+                            <button type="submit">Update</button>
+                        </form>
+                        <div class="status"></div>
+                    </div>
+                </div>
             </section>
             <section id='signUp'>
                 <h1>Sign Up</h1>
