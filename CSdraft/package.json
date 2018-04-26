@@ -1,0 +1,19 @@
+{
+  "name": "csdraft",
+  "version": "0.0.0",
+  "description": "CSdraft",
+  "scripts": {
+    "start": "node server"
+  },
+  "engines": {
+    "node": "~6.10.x"
+  },
+  "author": {
+    "name": "Ryan"
+  },
+  "dependencies": {
+    "azure-storage": "^2.8.1",
+    "mime-types": "^2.1.18",
+    "uuid": "^3.2.1"
+  }
+}
