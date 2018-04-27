@@ -17,25 +17,41 @@ th {
     border-bottom: 1px solid black;
 }
 
-ul.nav{
+ul.nav {
     list-style: none;
     padding: 0;
-}
-
-ul.nav li{
     display: inline-block;
-    margin-right: 15px;
-    border: 1px solid black;
-    border-radius: 3px;
-    background-color: red;
-    padding: 3px 10px;
-    color: white;
 }
 
-#content section{
-    display: none; 
+    ul.nav li {
+        display: inline-block;
+        margin-right: 15px;
+        border: 1px solid black;
+        border-radius: 3px;
+        background-color: red;
+        padding: 3px 10px;
+        color: white;
+    }
+
+#signedInAs {
+    display: inline-block;
+    margin-left: 0.5in;
 }
 
-form label{
+#content section {
+    display: none;
+}
+
+form label {
     display: block;
+}
+
+.column {
+    display: inline-block;
+    margin-right: 0.25in;
+    vertical-align: top;
+}
+
+#ratedPlayers {
+    margin-top: 0.25in;
 }

@@ -1,6 +1,40 @@
-function showSection(sectionId){
+var players = null;
+var signedInUser = null;
+
+function init() {
+    signedInUser = null;
+    document.getElementById('signedInAs').textContent = 'Please Sign In';
+    var userId = getUserId();
+    if (userId) {
+        var xhr = new XMLHttpRequest();
+        xhr.addEventListener('load', () => {
+            if (xhr.status === 200) {              
+                signedInUser = JSON.parse(xhr.responseText);
+                document.getElementById('signedInAs').textContent = `Signed in as ${signedInUser.name}`;
+                loadPlayers();
+            } 
+        });
+        xhr.open('GET', '/api/user/' + userId, true);
+        xhr.send();
+    }
+}
+document.addEventListener('DOMContentLoaded', init);
+
+function loadPlayers() {
+    var xhr = new XMLHttpRequest();
+    xhr.addEventListener('load', () => {
+        if (xhr.status === 200) {
+            players = JSON.parse(xhr.responseText);
+            showSection('home');
+        }
+    });
+    xhr.open('GET', '/api/players', true);
+    xhr.send();
+}
+
+function showSection(sectionId) {
     var reset = document.querySelectorAll('#content section');
-    for (var i = 0; i < reset.length; i++){
+    for (var i = 0; i < reset.length; i++) {
         reset[i].style.removeProperty('display');
     }
     var section = document.getElementById(sectionId);
@@ -13,30 +47,32 @@ function showSection(sectionId){
     }
 }
 
-function createUser(){
+function createUser() {
     var userEmail = document.querySelector('#createUserForm input[name="userEmail"]').value;
     var userPassword = document.querySelector('#createUserForm input[name="userPassword"]').value;
     var passwordConfirm = document.querySelector('#createUserForm input[name="userPasswordConfirm"]').value;
 
-    if (userPassword !== passwordConfirm){
+    if (userPassword !== passwordConfirm) {
         document.getElementById('passwordMismatch').removeAttribute('hidden');
         return;
     }
     document.getElementById('passwordMismatch').setAttribute('hidden', '');
 
     var xhr = new XMLHttpRequest();
-    xhr.open('POST', '/api/user', false);
-    xhr.send(JSON.stringify({ email: userEmail, password: userPassword }));
-    if (xhr.status === 200) {
-        var data = JSON.parse(xhr.responseText);
+    xhr.addEventListener('load', () => {
+        if (xhr.status === 200) {
+            var data = JSON.parse(xhr.responseText);
 
-        var expiration = new Date();
-        expiration.setDate(expiration.getDate() + 365);
-        document.cookie = 'userId=' + data.userId + ';path=/;expires=' + expiration.toUTCString();
-        showSection('home');
-    } else {
-        alert('Account Creation Failed');
-    }
+            var expiration = new Date();
+            expiration.setDate(expiration.getDate() + 365);
+            document.cookie = 'userId=' + data.userId + ';path=/;expires=' + expiration.toUTCString();
+            showSection('home');
+        } else {
+            alert('Account Creation Failed');
+        }
+    });
+    xhr.open('POST', '/api/user', true);
+    xhr.send(JSON.stringify({ email: userEmail, password: userPassword }));
 }
 
 function getUserId() {
@@ -52,22 +88,12 @@ function getUserId() {
 }
 
 function showingProfile() {
-    var userId = getUserId();
-    if (userId) {
-        var xhr = new XMLHttpRequest();
-        xhr.open('GET', '/api/user/' + userId, false);
-        xhr.send();
-        if (xhr.status === 200) {
-            var data = JSON.parse(xhr.responseText);
-            document.querySelector("#profile td.email").textContent = data.email;
-            document.querySelector("#profile td.name").textContent = data.name;
-            document.querySelector("#profile td.since").textContent = new Date(data.since).toLocaleString();
-        }
-
+    if (signedInUser) {
+        document.querySelector("#profile td.email").textContent = signedInUser.email;
+        document.querySelector("#profile td.name").textContent = signedInUser.name;
+        document.querySelector("#profile td.since").textContent = new Date(signedInUser.since).toLocaleString();
     }
 }
-
-var players = null;
 
 function showingPlayers() {
     var div = document.getElementById('playersTable');
@@ -76,58 +102,49 @@ function showingPlayers() {
     playersDetail.setAttribute('hidden', '');
     selectChange();
 
-    if (players) {
+    if (!players || players.length === 0) {
         return;
     }
 
-    var xhr = new XMLHttpRequest();
-    xhr.open('GET', '/api/players', false);
-    xhr.send();
-    if (xhr.status === 200) {
-        players = JSON.parse(xhr.responseText);
-        if (players.length === 0) {
-            return;
+    var keys = Object.keys(players[0].data);
+    var table = document.createElement('table');
+    var tr = document.createElement('tr');
+    table.appendChild(tr);
+    for (var k = 0; k < keys.length; k++) {
+        if (keys[k] === 'ID') {
+            continue;
         }
-        var keys = Object.keys(players[0].data);
-        var table = document.createElement('table');
-        var tr = document.createElement('tr');
+        let td = document.createElement('th');
+        td.textContent = keys[k];
+        tr.appendChild(td);
+    }
+    for (var i = 0; i < players.length; i++) {
+        tr = document.createElement('tr');
+        tr.setAttribute('data-name', players[i].data.Name);
+        tr.setAttribute('data-school', players[i].data.School);
+        tr.setAttribute('data-position', players[i].data['Pos.']);
+        tr.addEventListener('click', function (ev) { displayPlayer(ev.currentTarget.getAttribute('data-name')); });
         table.appendChild(tr);
-        for (var k = 0; k < keys.length; k++) {
-            if (keys[k] === 'ID') {
+        for (var j = 0; j < keys.length; j++) {
+            if (keys[j] === 'ID') {
                 continue;
             }
-            let td = document.createElement('th');
-            td.textContent = keys[k];
+            let td = document.createElement('td');
+            td.textContent = players[i].data[keys[j]];
             tr.appendChild(td);
         }
-        for (var i = 0; i < players.length; i++) {
-            tr = document.createElement('tr');
-            tr.setAttribute('data-name', players[i].data.Name);
-            tr.setAttribute('data-school', players[i].data.School);
-            tr.setAttribute('data-position', players[i].data['Pos.']);
-            tr.addEventListener('click', function (ev) { displayPlayer(ev.currentTarget.getAttribute('data-name')); });
-            table.appendChild(tr);
-            for (var j = 0; j < keys.length; j++) {
-                if (keys[j] === 'ID') {
-                    continue;
-                }
-                let td = document.createElement('td');
-                td.textContent = players[i].data[keys[j]];
-                tr.appendChild(td);
-            }
-        }
-        
-        div.textContent = '';
-        div.appendChild(table);
-
-        populateDatalist('players-Datalist', players.map(function (x) { return x.data.Name; }));
-        populateDatalist('schools-Datalist', players.map(function (x) { return x.data.School; }));
-        populateDatalist('positions-Datalist', players.map(function (x) { return x.data['Pos.']; }));
-
-        document.getElementById('schools-Datalist').addEventListener('change', selectChange);
-        document.getElementById('players-Datalist').addEventListener('change', selectChange);
-        document.getElementById('positions-Datalist').addEventListener('change', selectChange);
     }
+
+    div.textContent = '';
+    div.appendChild(table);
+
+    populateDatalist('players-Datalist', players.map(function (x) { return x.data.Name; }));
+    populateDatalist('schools-Datalist', players.map(function (x) { return x.data.School; }));
+    populateDatalist('positions-Datalist', players.map(function (x) { return x.data['Pos.']; }));
+
+    document.getElementById('schools-Datalist').addEventListener('change', selectChange);
+    document.getElementById('players-Datalist').addEventListener('change', selectChange);
+    document.getElementById('positions-Datalist').addEventListener('change', selectChange);
 }
 
 function selectChange() {
@@ -230,13 +247,16 @@ function saveRating() {
         return;
     }
     var xhr = new XMLHttpRequest();
-    xhr.open('POST', '/api/rating/' + pkey + '/' + rkey, false);
+    xhr.addEventListener('load', () => {
+        if (xhr.status === 200) {
+            status.textContent = 'Rating Saved';
+        } else {
+            alert('Rating Submission Failed');
+        }
+    });
+    xhr.open('POST', '/api/rating/' + pkey + '/' + rkey, true);
     xhr.send(JSON.stringify({ rating: rating }));
-    if (xhr.status === 200) {
-        status.textContent = 'Rating Saved';
-    } else {
-        alert('Rating Submission Failed');
-    }
+   
 }
 
 function getRating(pkey, rkey, callback) {
@@ -244,13 +264,16 @@ function getRating(pkey, rkey, callback) {
         return;
     }
     var xhr = new XMLHttpRequest();
-    xhr.open('GET', '/api/rating/' + pkey + '/' + rkey, false);
+    xhr.addEventListener('load', () => {
+        if (xhr.status === 200) {
+            var response = JSON.parse(xhr.responseText);
+            callback(response.rating);
+        }
+    });
+    xhr.open('GET', '/api/rating/' + pkey + '/' + rkey, true);
     xhr.send();
-    if (xhr.status === 200) {
-        var response = JSON.parse(xhr.responseText);
-        callback(response.rating);
-    }
 }
+
 
 function showingHome() {
     var ratedPlayers = document.getElementById('ratedPlayers');
@@ -266,49 +289,78 @@ function showingHome() {
         return;
     }
     var xhr = new XMLHttpRequest();
-    xhr.open('GET', '/api/rated/' + userId, false);
+    xhr.addEventListener('load', () => {
+        if (xhr.status === 200) {
+            var rpArr = JSON.parse(xhr.responseText);
+
+            for (var i = 0; i < rpArr.length; i++) {
+                var playerMatch = players.filter(a => a.rkey === rpArr[i].id);
+                if (playerMatch.length === 1) {
+                    rpArr[i].Name = playerMatch[0].data.Name;
+                    rpArr[i].Position = playerMatch[0].data['Pos.'];
+                }
+            }
+            var switchValue = document.querySelector('input[name="homeShow"]:checked').value;
+            if (switchValue === 'grid') {
+                showBoard(rpArr, ratedPlayers);
+            } else {
+                showStack(rpArr, ratedPlayers);
+            }
+        }
+    });
+    xhr.open('GET', '/api/rated/' + userId, true);
     xhr.send();
-    if (xhr.status === 200) {
-        var rpArr = JSON.parse(xhr.responseText);
+}
 
-        for (var i = 0; i < rpArr.length; i++) {
-            var playerMatch = players.filter(a => a.rkey === rpArr[i].id);
-            if (playerMatch.length === 1) {
-                rpArr[i].Name = playerMatch[0].data.Name;
-                rpArr[i].Position = playerMatch[0].data['Pos.'];
-            }
+function showStack(rpArr, ratedPlayers) {
+    rpArr.sort(function (a, b) { return b.rating - a.rating; });
+    var container = document.createElement('div');
+    container.className = 'container';
+    for (var i = 0; i < rpArr.length; i += 32) {
+        var column = document.createElement('div');
+        column.className = 'column';
+        for (var j = i; j < Math.min(rpArr.length, i + 32); j++) {
+            var item = document.createElement('div');
+            item.className = 'item';
+            item.textContent = `${j + 1}: ${rpArr[j].Position} ${rpArr[j].Name}, ${rpArr[j].rating}`
+            column.appendChild(item);
         }
-        var positions = {};
-        for (var k = 0; k < rpArr.length; k++) {
-            var key = rpArr[k].Position;
-            if (key) {
-                positions[key] = key;
-            }
+        container.appendChild(column);
+    }
+    ratedPlayers.appendChild(container);
+}
+
+function showBoard(rpArr, ratedPlayers) {
+    var positions = {};
+    for (var k = 0; k < rpArr.length; k++) {
+        var key = rpArr[k].Position;
+        if (key) {
+            positions[key] = key;
         }
-        var posKeys = Object.keys(positions);
-        posKeys.sort();
+    }
+    var posKeys = Object.keys(positions);
+    posKeys.sort();
 
-        var t = document.createElement('table');
-        var tr = document.createElement('tr');
+    var t = document.createElement('table');
+    var tr = document.createElement('tr');
 
-        for (var j = 0; j < posKeys.length; j++) {
-            var th = document.createElement('th');
-            th.textContent = posKeys[j];
-            tr.appendChild(th);
+    for (var j = 0; j < posKeys.length; j++) {
+        var th = document.createElement('th');
+        th.textContent = posKeys[j];
+        tr.appendChild(th);
+    }
+    t.appendChild(tr);
+
+    for (var m = 99; m >= 30; m--) {
+        tr = document.createElement('tr');
+        for (var n = 0; n < posKeys.length; n++) {
+            var p = rpArr.filter(a => a.rating === m && a.Position === posKeys[n]);
+            var pdisplay = "<div>" + p.map(b => `${b.Name}, ${b.rating}`).join('</div><div>') + "</div>";
+            var td = document.createElement('td');
+            td.innerHTML = pdisplay || '';
+            tr.appendChild(td);
         }
         t.appendChild(tr);
-
-        for (var m = 99; m >= 30; m--) {
-            tr = document.createElement('tr');
-            for (var n = 0; n < posKeys.length; n++) {
-                var p = rpArr.filter(a => a.rating === m && a.Position === posKeys[n]);
-                var pdisplay = p.map(b => `${b.Name}, ${b.rating}`).join('<br>');
-                var td = document.createElement('td');
-                td.innerHTML = pdisplay || '';
-                tr.appendChild(td);
-            }
-            t.appendChild(tr);
-        }
-        ratedPlayers.appendChild(t);
     }
+    ratedPlayers.appendChild(t);
 }

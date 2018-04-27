@@ -62,7 +62,7 @@ function processPost(req, res) {
         body += data;
 
         if (body.length > 1e6) {
-            request.connection.destroy();
+            req.connection.destroy();
         }
     });
 
