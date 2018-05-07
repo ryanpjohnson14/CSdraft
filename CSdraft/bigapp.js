@@ -33,18 +33,22 @@ function loadPlayers() {
 }
 
 function showSection(sectionId) {
+    var section = unhideSection(sectionId);
+    var onShow = section.getAttribute('data-onShow');
+
+    if (onShow && typeof window[onShow] === 'function') {
+        window[onShow]();
+    }
+}
+
+function unhideSection(sectionId) {
     var reset = document.querySelectorAll('#content section');
     for (var i = 0; i < reset.length; i++) {
         reset[i].style.removeProperty('display');
     }
     var section = document.getElementById(sectionId);
     section.style.display = 'block';
-
-    var onShow = section.getAttribute('data-onShow');
-
-    if (onShow && typeof window[onShow] === 'function') {
-        window[onShow]();
-    }
+    return section;
 }
 
 function createUser() {
@@ -123,7 +127,7 @@ function showingPlayers() {
         tr.setAttribute('data-name', players[i].data.Name);
         tr.setAttribute('data-school', players[i].data.School);
         tr.setAttribute('data-position', players[i].data['Pos.']);
-        tr.addEventListener('click', function (ev) { displayPlayer(ev.currentTarget.getAttribute('data-name')); });
+        tr.setAttribute('onclick', `displayPlayer('${players[i].data.Name}')`);
         table.appendChild(tr);
         for (var j = 0; j < keys.length; j++) {
             if (keys[j] === 'ID') {
@@ -232,6 +236,7 @@ function displayPlayer(name) {
     playersDetailData.appendChild(t);
     playersTable.setAttribute('hidden', '');
     playersDetail.removeAttribute('hidden');
+    unhideSection('players');
     document.getElementById("playerRkey").value = player.rkey;
     document.getElementById("playerPkey").value = player.pkey;
     document.getElementById("ratingRange").value = '';
@@ -322,7 +327,8 @@ function showStack(rpArr, ratedPlayers) {
         for (var j = i; j < Math.min(rpArr.length, i + 32); j++) {
             var item = document.createElement('div');
             item.className = 'item';
-            item.textContent = `${j + 1}: ${rpArr[j].Position} ${rpArr[j].Name}, ${rpArr[j].rating}`
+            item.textContent = `${j + 1}: ${rpArr[j].Position} ${rpArr[j].Name}, ${rpArr[j].rating}`;
+            item.setAttribute('onclick', `displayPlayer('${rpArr[j].Name}')`);
             column.appendChild(item);
         }
         container.appendChild(column);
@@ -354,10 +360,14 @@ function showBoard(rpArr, ratedPlayers) {
     for (var m = 99; m >= 30; m--) {
         tr = document.createElement('tr');
         for (var n = 0; n < posKeys.length; n++) {
-            var p = rpArr.filter(a => a.rating === m && a.Position === posKeys[n]);
-            var pdisplay = "<div>" + p.map(b => `${b.Name}, ${b.rating}`).join('</div><div>') + "</div>";
-            var td = document.createElement('td');
-            td.innerHTML = pdisplay || '';
+            var p = rpArr.filter(a => a.rating === m && a.Position === posKeys[n]);           
+            var td = document.createElement('td');         
+            for (var q = 0; q < p.length; q++) {
+                var div = document.createElement('div'); 
+                div.textContent = `${p[q].Name}, ${p[q].rating}`;
+                div.setAttribute('onclick', `displayPlayer('${p[q].Name}')`);
+                td.appendChild(div);
+            }
             tr.appendChild(td);
         }
         t.appendChild(tr);

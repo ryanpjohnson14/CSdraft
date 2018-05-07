@@ -33,6 +33,12 @@ ul.nav {
         color: white;
     }
 
+ul.nav li:hover{
+    background-color:aqua;
+    cursor: pointer;
+    color:black;
+}
+
 #signedInAs {
     display: inline-block;
     margin-left: 0.5in;
@@ -54,4 +60,15 @@ form label {
 
 #ratedPlayers {
     margin-top: 0.25in;
+}
+
+div[onclick]:hover {
+    color: blue;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+tr[onclick]:hover {
+    background-color: lightgray;
+    cursor: pointer;
 }
