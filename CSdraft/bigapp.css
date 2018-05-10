@@ -32,6 +32,9 @@ ul.nav {
         padding: 3px 10px;
         color: white;
     }
+    ul.nav li[hidden]{
+        display: none;
+    }
 
 ul.nav li:hover{
     background-color:aqua;
@@ -44,6 +47,9 @@ ul.nav li:hover{
     margin-left: 0.5in;
 }
 
+#ratedPlayers td:empty{
+    background-color: #e8e8e8;
+}
 #content section {
     display: none;
 }

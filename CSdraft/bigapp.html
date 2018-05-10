@@ -8,13 +8,14 @@
 <body>
     <header>
         <ul class='nav'>
-            <li onclick='showSection("home")'>Home</li>
-            <li onclick='showSection("players")'>Players</li>
-            <li onclick='showSection("signUp")'>Sign Up</li>
-            <li onclick='showSection("signIn")'>Sign In</li>
-            <li onclick='showSection("profile")'>Profile</li>
+            <li onclick='showSection("home")' class="signedIn" hidden>Home</li>
+            <li onclick='showSection("players")' class="signedIn" hidden>Players</li>
+            <li onclick='showSection("signUp")' class="notSignedIn" hidden>Sign Up</li>
+            <li onclick='showSection("signIn")' class="notSignedIn" hidden>Sign In</li>
+            <li onclick='showSection("profile")' class="signedIn" hidden>Profile</li>
+            <li onclick='showSection("signOut")' class="signedIn" hidden>Sign Out</li>
         </ul>
-        <div id="signedInAs">User:</div>
+        <div id="signedInAs"></div>
     </header>
     <div id='content'>
         <section id='home' data-onShow="showingHome">
@@ -68,6 +69,20 @@
         </section>
         <section id='signIn'>
             <h1>Sign In</h1>
+            <form onsubmit='signIn(); return false' id='signInForm'>
+                <table>
+                    <tr><td><label>Email Address:</label></td><td><input type='email' name='userEmail' required></td></tr>
+                    <tr><td><label>Password:</label></td><td><input type='password' name='userPassword' required minlength="5"></td></tr>
+                    <tr>
+                        <td><label>Confirm Password:</label></td>
+                        <td>
+                            <input type='password' name='userPasswordConfirm' required minlength="5">
+                            <span id='signInPasswordMismatch' hidden>Passwords Must Match</span>
+                        </td>
+                    </tr>
+                </table>
+                <button type='submit'>Sign In</button>
+            </form>
         </section>
         <section id='profile' data-onShow="showingProfile">
             <h1>Profile</h1>
@@ -77,6 +92,9 @@
                 <tr><td>User Since:</td><td class="since"></td></tr>
             </table>
         </section>
+        <section id='signOut' data-onShow="doSignOut">
+        </section>
+
     </div>
 </body>
 </html>

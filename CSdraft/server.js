@@ -71,6 +71,8 @@ function processPost(req, res) {
 
         if (req.url === '/api/user') {
             createNewUser(postData, res);
+        } else if (req.url === '/api/signIn') {
+            signIn(postData, res);
         } else if (req.url.indexOf('/api/rating/') === 0) {
             var parts = req.url.split('/');
             saveRating(parts[3], parts[4], postData.rating, res);
@@ -100,15 +102,15 @@ function processApiGet(req, res) {
     }
 }
 
-function createNewUser(data, res) {
+function createNewUser(postData, res) {
     var userId = uuid();
     ensureUserTable(tableName => {
         var entGen = azure.TableUtilities.entityGenerator;
         var entity = {
             PartitionKey: entGen.String(userId),
-            RowKey: entGen.String(data.email.toLowerCase()),
-            Password: entGen.String(data.password),
-            Name: entGen.String(data.email.split('@')[0]),
+            RowKey: entGen.String(postData.email.toLowerCase()),
+            Password: entGen.String(postData.password),
+            Name: entGen.String(postData.email.split('@')[0]),
             UserSince: entGen.DateTime(new Date()),
             //boolValueTrue: entGen.Boolean(true),
             //boolValueFalse: entGen.Boolean(false),
@@ -119,7 +121,8 @@ function createNewUser(data, res) {
         tableService.insertEntity(tableName, entity, function (error, result, response) {
             if (!error) {            
                 res.writeHead(200, { 'Content-Type': mime.contentType('json') });
-                res.end(JSON.stringify({ userId: userId }));
+                var data = { email: entity.RowKey._, name: entity.Name._, since: entity.UserSince._, userId: entity.PartitionKey._ };
+                res.end(JSON.stringify(data));
             } else {
                 res.writeHead(response.statusCode);
                 res.end();
@@ -144,10 +147,39 @@ function ensureRatingTable(callback) {
     });
 }
 
+function signIn(postData, res) {
+    ensureUserTable(tableName => {
+        var query = new azure.TableQuery()
+            .top(1)
+            .where('RowKey eq ?', postData.email);
+        tableService.queryEntities(tableName, query, null, function (error, result, response) {
+            if (!error) {
+                if (result.entries.length !== 1) {
+                    res.writeHead(404);
+                    res.end();
+                    return;
+                }
+                var entity = result.entries[0];
+                if (entity.Password._ !== postData.password) {
+                    res.writeHead(401);
+                    res.end();
+                    return;
+                }
+                var data = { email: entity.RowKey._, name: entity.Name._, since: entity.UserSince._, userId: entity.PartitionKey._ };
+                console.log('' + data);
+                res.writeHead(200, { 'Content-Type': mime.contentType('json') });
+                res.end(JSON.stringify(data));
+            } else {
+                res.writeHead(response.statusCode);
+                res.end();
+            }
+        });
+    });
+}
+
 function getUser(userId, res) {
     ensureUserTable(tableName => {
         var query = new azure.TableQuery()
-            .select(['RowKey', 'Name', 'UserSince'])
             .top(1)
             .where('PartitionKey eq ?', userId);
         tableService.queryEntities(tableName, query, null, function (error, result, response) {
@@ -158,7 +190,7 @@ function getUser(userId, res) {
                     return;
                 }
                 var entity = result.entries[0];
-                var data = {email: entity.RowKey._, name: entity.Name._, since: entity.UserSince._};
+                var data = {email: entity.RowKey._, name: entity.Name._, since: entity.UserSince._, userId: entity.PartitionKey._};
                 console.log('' + data);
                 res.writeHead(200, { 'Content-Type': mime.contentType('json') });
                 res.end(JSON.stringify(data));

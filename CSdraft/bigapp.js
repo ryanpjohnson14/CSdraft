@@ -1,24 +1,55 @@
 var players = null;
 var signedInUser = null;
 
+// original cookie: 77fdb0e0-458d-11e8-a56c-27039c7e9df9
+
 function init() {
-    signedInUser = null;
-    document.getElementById('signedInAs').textContent = 'Please Sign In';
+    signedInUser = null;  
     var userId = getUserId();
     if (userId) {
         var xhr = new XMLHttpRequest();
         xhr.addEventListener('load', () => {
-            if (xhr.status === 200) {              
-                signedInUser = JSON.parse(xhr.responseText);
-                document.getElementById('signedInAs').textContent = `Signed in as ${signedInUser.name}`;
-                loadPlayers();
-            } 
+            if (xhr.status === 200) {
+                signedInUser = JSON.parse(xhr.responseText);          
+                signInStatus();
+            } else {
+                signInStatus();
+            }
         });
         xhr.open('GET', '/api/user/' + userId, true);
         xhr.send();
+    } else {
+        signInStatus();
     }
 }
 document.addEventListener('DOMContentLoaded', init);
+
+function signInStatus() {
+    var signedInElements = document.querySelectorAll('.signedIn');
+    
+    for (var i = 0; i < signedInElements.length; i++) {
+        if (signedInUser) {
+            signedInElements[i].removeAttribute('hidden');
+        } else {
+            signedInElements[i].setAttribute('hidden', '');
+        }
+    }
+    var notSignedInElements = document.querySelectorAll('.notSignedIn');
+
+    for (var i = 0; i < notSignedInElements.length; i++) {
+        if (!signedInUser) {
+            notSignedInElements[i].removeAttribute('hidden');
+        } else {
+            notSignedInElements[i].setAttribute('hidden', '');
+        }
+    }
+    if (signedInUser) {
+        document.getElementById('signedInAs').textContent = `Signed in as ${signedInUser.name}`;
+        loadPlayers();
+    } else {
+        document.getElementById('signedInAs').textContent = 'Please Sign In';
+    }
+}
 
 function loadPlayers() {
     var xhr = new XMLHttpRequest();
@@ -65,12 +96,11 @@ function createUser() {
     var xhr = new XMLHttpRequest();
     xhr.addEventListener('load', () => {
         if (xhr.status === 200) {
-            var data = JSON.parse(xhr.responseText);
-
+            signedInUser = JSON.parse(xhr.responseText);
+            signInStatus();
             var expiration = new Date();
             expiration.setDate(expiration.getDate() + 365);
-            document.cookie = 'userId=' + data.userId + ';path=/;expires=' + expiration.toUTCString();
-            showSection('home');
+            document.cookie = 'userId=' + signedInUser.userId + ';path=/;expires=' + expiration.toUTCString();
         } else {
             alert('Account Creation Failed');
         }
@@ -373,4 +403,39 @@ function showBoard(rpArr, ratedPlayers) {
         t.appendChild(tr);
     }
     ratedPlayers.appendChild(t);
+}
+
+function signIn() {
+    var userEmail = document.querySelector('#signInForm input[name="userEmail"]').value;
+    var userPassword = document.querySelector('#signInForm input[name="userPassword"]').value;
+    var passwordConfirm = document.querySelector('#signInForm input[name="userPasswordConfirm"]').value;
+
+    if (userPassword !== passwordConfirm) {
+        document.getElementById('signInPasswordMismatch').removeAttribute('hidden');
+        return;
+    }
+    document.getElementById('signInPasswordMismatch').setAttribute('hidden', '');
+
+    var xhr = new XMLHttpRequest();
+    xhr.addEventListener('load', () => {
+        if (xhr.status === 200) {
+            signedInUser = JSON.parse(xhr.responseText);
+            signInStatus();
+            var expiration = new Date();
+            expiration.setDate(expiration.getDate() + 365);
+            document.cookie = 'userId=' + signedInUser.userId + ';path=/;expires=' + expiration.toUTCString();
+        } else {
+            alert('sign in failed');
+        }
+    });
+    xhr.open('POST', '/api/signIn', true);
+    xhr.send(JSON.stringify({ email: userEmail, password: userPassword }));
+}
+
+function doSignOut() {
+    document.cookie = 'userId=' + '' + ';path=/;expires=' + new Date().toUTCString();
+    players = null;
+    signedInUser = null;
+    signInStatus();
+    showSection('signIn');
 }
