@@ -1,5 +1,12 @@
 var players = null;
 var signedInUser = null;
+var tips = {
+    SS: 'Short Shuttle (seconds)',
+    TC: 'Three-Cone (seconds)',
+    BP: 'Bench Press (reps of 225 lbs)',
+    VJ: 'Vertical Jump (in)',
+    BJ: 'Broad Jump (ft)'
+};
 
 // original cookie: 77fdb0e0-458d-11e8-a56c-27039c7e9df9
 
@@ -145,10 +152,13 @@ function showingPlayers() {
     var tr = document.createElement('tr');
     table.appendChild(tr);
     for (var k = 0; k < keys.length; k++) {
-        if (keys[k] === 'ID') {
+        if (keys[k] === 'ID' || keys[k].indexOf('#') !== -1) {
             continue;
         }
         let td = document.createElement('th');
+        if (tips[keys[k]]) {
+            td.setAttribute('title', tips[keys[k]]);
+        }
         td.textContent = keys[k];
         tr.appendChild(td);
     }
@@ -160,11 +170,12 @@ function showingPlayers() {
         tr.setAttribute('onclick', `displayPlayer('${players[i].data.Name}')`);
         table.appendChild(tr);
         for (var j = 0; j < keys.length; j++) {
-            if (keys[j] === 'ID') {
+            if (keys[j] === 'ID' || keys[j].indexOf('#') !== -1) {
                 continue;
             }
             let td = document.createElement('td');
-            td.textContent = players[i].data[keys[j]];
+            var x = players[i].data[keys[j]];
+            td.textContent = x;
             tr.appendChild(td);
         }
     }

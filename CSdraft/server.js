@@ -7,7 +7,7 @@ var uuid = require('uuid/v1');
 
 //var devCreds = azure.generateDevelopmentStorageCredentials();
 //var tableService = azure.createTableService(devCreds);
-var tableService = azure.createTableService("DefaultEndpointsProtocol=https;AccountName=csdraftdb;AccountKey=mXn9BNopoOYN/aavwG5dmH5Qh4pSyJZEIyFwQzLSUkyhdfXdzmIV2pa7M4I6ky7joFp7OggVj7iYvvlfzvmN+g==;EndpointSuffix=core.windows.net");
+var tableService = azure.createTableService("DefaultEndpointsProtocol=https;AccountName=csdraftboards;AccountKey=jpznezPvX9qggO2rXSUauMdqTTSjHeAMuHniI4lNZReoL9DyUHZ7TFJEHZLEsd1f6x0u6+9AE07EyaEMDen/tA==;EndpointSuffix=core.windows.net");
 
 var port = process.env.PORT || 1337;
 
@@ -203,32 +203,37 @@ function getUser(userId, res) {
 }
 
 function importPlayers(res) {
-    fs.readdir('playerData', function (err, items) {
-        var allDigits = /^\d+$/;
+    fs.readdir('playerData', function (err, years) {
+        var allDigits = /^\d+$/;  
         var data = [];
-        for (var k = 0; k < items.length; k++) {
-            var contents = fs.readFileSync(`playerData/${items[k]}`, 'utf8');
-            var lines = contents.split(/[\n\r]+/);
-            var columns = lines[0].split(',');            
-            for (var m = 0; m < columns.length; m++) {
-                if (allDigits.test(columns[m])) {
-                    columns[m] = '' + columns[m] + '-yard';
-                }
-            }            
-            for (var i = 1; i < lines.length; i++) {
-                var ind = lines[i].split(',');
-                if (ind.length === columns.length) {
-                    var player = {};
-                    for (var j = 0; j < ind.length; j++) {
-                        if (columns[j] === '#' || columns[j] === 'ID') {
-                            continue;
-                        }
-                        player[columns[j]] = ind[j];
+        for (var x = 0; x < years.length; x++) {
+            var items = fs.readdirSync(`playerData/${years[x]}`);         
+            for (var k = 0; k < items.length; k++) {
+                var contents = fs.readFileSync(`playerData/${years[x]}/${items[k]}`, 'utf8');
+                var lines = contents.split(/[\n\r]+/);
+                var columns = lines[0].split(',');
+                for (var m = 0; m < columns.length; m++) {
+                    if (allDigits.test(columns[m])) {
+                        columns[m] = '' + columns[m] + '-yard';
                     }
-                    data.push(player);
+                }
+                for (var i = 1; i < lines.length; i++) {
+                    var ind = lines[i].split(',');
+                    if (ind.length === columns.length) {
+                        var player = {};
+                        player.year = years[x];
+                        for (var j = 0; j < ind.length; j++) {
+                            if (columns[j] === '#' || columns[j] === 'ID') {
+                                continue;
+                            }
+                            player[columns[j]] = ind[j];
+                        }
+                        data.push(player);
+                    }
                 }
             }
         }
+
         addPlayersToDatabase(data, res);
     });
 }
@@ -240,13 +245,17 @@ function addPlayersToDatabase(data, res) {
                 var entGen = azure.TableUtilities.entityGenerator;              
                 for (var j = 0; j < data.length; j += 100) {               
                     var batch = new azure.TableBatch();
-                    for (var i = j; i < Math.min(data.length, j + 100); i++) {
+                    var currentYear = data[j].year;
+                    for (var i = j; i < Math.min(data.length, j + 100); i++) {    
+                        if (data[i].year !== currentYear) {
+                            currentYear = data[i].year;
+                            batches.push(batch);
+                            batch = new azure.TableBatch();
+                        }
                         var player = data[i];
                         var entity = {
-                            PartitionKey: entGen.String('player'),
+                            PartitionKey: entGen.String(player.year),
                             RowKey: entGen.String(uuid()),
-                            Name: entGen.String(player['Name']),
-                            School: entGen.String(player['School']),
                             PlayerJSON: entGen.String(JSON.stringify(player))
                         };
                         batch.addOperation(azure.Constants.TableConstants.Operations.INSERT, entity);
